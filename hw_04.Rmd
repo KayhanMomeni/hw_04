@@ -1,0 +1,940 @@
+---
+title: "Fourth Week: Hypothesis Testing"
+subtitle: "TIMSS Analysis"
+author: "Kayhan Momeni (93100099)"
+date: "17 Esfand 1396"
+output:
+  prettydoc::html_pretty:
+    theme: leonids
+    highlight: github
+---
+
+<div align="center">
+<img  src="images/math.jpg"  align = 'center'>
+</div>
+
+<h1 dir="RTL"> 
+تمرین سری چهارم: چقدر ریاضی بلدیم و چرا؟
+</h1>
+
+<p dir="RTL"> لطفا مقاله زیر را مطالعه بفرمایید. </p>
+<p dir="RTL">
+[چرایی رتبه ضعیف ایران در آزمون تیمز](https://goo.gl/gX8DZc)
+</p>
+
+> <p dir="RTL"> 
+با استفاده از داده های ارزیابی تیمز ۲۰۱۵ ادعاهای زیر را مورد ارزیابی قراردهید.
+برای هر سوال علاوه بر استدلال آماری که در غالب آزمون فرض تعریف می شود از تصویرسازی مناسب باهر دو ابزار
+ggplot2
+و
+highcharter
+استفاده نمایید.
+به دلخواه به هفت گزاره از موارد زیر پاسخ دهید.
+</p>
+
+***
+<p dir="RTL">
+ابتدا باید پکیج های مورد نیاز را صدا زده و داده ها را فرابخوانیم:
+</p>
+```{r, eval=FALSE}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(highcharter)
+bcg = read_rds("/Users/kayhan/Desktop/Data/bcg.rds")
+bsa = read_rds("/Users/kayhan/Desktop/Data/bsa.rds")
+bsg = read_rds("/Users/kayhan/Desktop/Data/bsg.rds")
+bsr = read_rds("/Users/kayhan/Desktop/Data/bsr.rds")
+bst = read_rds("/Users/kayhan/Desktop/Data/bst.rds")
+btm = read_rds("/Users/kayhan/Desktop/Data/btm.rds")
+bts = read_rds("/Users/kayhan/Desktop/Data/bts.rds")
+timss = read_rds("/Users/kayhan/Desktop/Data/timss_2015.rds")
+```
+```{r include=FALSE, cache=FALSE}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(highcharter)
+bcg = read_rds("/Users/kayhan/Desktop/Data/bcg.rds")
+bsa = read_rds("/Users/kayhan/Desktop/Data/bsa.rds")
+bsg = read_rds("/Users/kayhan/Desktop/Data/bsg.rds")
+bsr = read_rds("/Users/kayhan/Desktop/Data/bsr.rds")
+bst = read_rds("/Users/kayhan/Desktop/Data/bst.rds")
+btm = read_rds("/Users/kayhan/Desktop/Data/btm.rds")
+bts = read_rds("/Users/kayhan/Desktop/Data/bts.rds")
+timss = read_rds("/Users/kayhan/Desktop/Data/timss_2015.rds")
+```
+***
+
+
+<h4 dir="RTL">
+۱. میران رضایت معلمان در پیشرفت تحصیلی دانش آموزان موثر است.
+</h4>
+<h5 dir="RTL">
+پاسخ:
+</h5>
+```{r, warning=FALSE}
+bsa %>%
+  select(idcntry, idstud, bsmmat01:bsmmat05) %>%
+  mutate(meanMath = (bsmmat01+bsmmat02+bsmmat03+bsmmat04+bsmmat05)/5) %>%
+  select(idcntry, idstud, meanMath) ->students
+
+btm %>%
+  select(idcntry, idteach, satisfaction = btdgtjs) ->teachers
+
+bst %>%
+  select(idcntry, idstud, idteach) ->link
+
+teachers = merge(teachers, link, by=c("idcntry","idteach"))
+students = merge(students, teachers, by=c("idcntry","idstud"))
+
+students %>%
+  filter(!is.na(satisfaction)) ->students
+
+students %>%
+  group_by(satisfaction) %>%
+  summarise(mean=mean(meanMath)) -> stat
+```
+<p dir="RTL">
+تا اینجا دانش آموزان را برحسب اینکه معلمشان چقدر از شغلش راضی است، دسته بندی کرده ایم:
+</p>
+
+```{r, warning=FALSE, fig.width=10}
+stat%>%
+  ggplot(aes(x=satisfaction, y=mean))+
+  geom_point(color="blue")+geom_line(color="blue")+
+  xlab("Teacher's Satisfaction")+
+  ylab("Average Functionality of Students")+
+  theme_bw()
+
+stat%>%
+  hchart(type="line", hcaes(x=satisfaction, y=mean)) %>%
+  hc_xAxis(title = list(text = "Teacher's Satisfaction")) %>%
+  hc_yAxis(title = list(text = "Average Functionality of Students"))
+```
+<p dir="RTL">
+همانطور که مشخص است، دانش آموزانی که معلمشان از شغلش راضی بوده، میانگین بهترین داشته اند و دانش آموزانی که معلمشان از شغلش بسیار راضی بوده یا راضی نبوده، میانگین پایین تری داشته اند. برای بهتر مشخص شدن تفاوت، تابع توزیع چگالی عملکرد دانش آموزان را نگاهی می اندازیم:
+</p>
+```{r, warning=FALSE, fig.width=10}
+students %>%
+  ggplot(aes(x = meanMath, group=satisfaction, fill=satisfaction)) +
+  geom_density(alpha = 0.3) +
+  xlab("Score") + ylab("Density")+
+  theme_bw()
+
+hchart(density(students$meanMath[which(students$satisfaction==1)]), type = "area", name="Very Satisfied") %>%
+  hc_add_series(density(students$meanMath[which(students$satisfaction==2)]), type = "area", name="Satisfied") %>%
+  hc_add_series(density(students$meanMath[which(students$satisfaction==3)]), type = "area", name="Less than Satisfied") %>%
+  hc_add_theme(hc_theme_elementary()) %>%
+  hc_xAxis(title = list(text = "Student's Function")) %>%
+  hc_yAxis(title = list(text = "Density"))
+```
+<p dir="RTL">
+همچنین نمودار جعبه ای هم به این صورت است:
+</p>
+```{r, warning=FALSE, fig.width=10}
+students %>%
+  ggplot(aes(x=satisfaction, y=meanMath, group=satisfaction, fill=satisfaction)) +
+  geom_boxplot() + 
+  xlab("Teacher's Satisfaction")+
+  ylab("Functionality of Students")+
+  theme_bw()
+
+hcboxplot(x = students$meanMath, var = students$satisfaction,
+          name = "Functionality of Students") %>%
+  hc_chart(type = "column") %>%
+  hc_xAxis(title = list(text = "Teacher's Satisfaction")) %>%
+  hc_yAxis(title = list(text = "Functionality of Students"))
+```
+<p dir="RTL">
+به نظر می رسد که این تفاوت معنادار است. برای سنجش کمی قضیه، از آزمون فرض آنووا یکطرفه استفاده میکنیم. فرض صفر این است که همه ی گروه ها عملکرد آماری یکسانی دارند:
+</p>
+```{r, warning=FALSE}
+summary.aov(aov(meanMath~satisfaction, data = students))
+```
+<p dir="RTL">
+همانطور که مشخص است، 
+$Pr(>F)$ 
+که مشابه همان 
+$p-value$ 
+است، عددی بسیار کوچک است. یعنی تقریبا 
+$2*10^{-16}$. 
+بنابراین فرض صفر رد می شود و اختلافات آماری معنادار هستند.
+</p>
+***
+
+<h4 dir="RTL">
+۲. والدینی که تحصیلات بیشتری دارند دارای فرزندان موفق تری می باشند.
+</h4>
+<h5 dir="RTL">
+پاسخ:
+</h5>
+<p dir="RTL">
+حل این سوال، بسیار مشابه سوال قبلی است. میزان تحصیلات والدین را میانگین میزان تحصیلات پدر و میزان تحصیلات مادر در نظر می گیریم:
+</p>
+```{r, warning=FALSE}
+bsa %>%
+  select(idcntry, idstud, bsmmat01:bsmmat05) %>%
+  mutate(meanMath = (bsmmat01+bsmmat02+bsmmat03+bsmmat04+bsmmat05)/5) %>%
+  select(idcntry, idstud, meanMath) -> students
+
+bsg %>%
+  select(idcntry, idstud, motherEducation=bsbg07a, fatherEducation=bsbg07b) %>%
+  mutate (avgParentsEducation=(motherEducation+fatherEducation)/2)-> students2
+
+students = merge(students, students2, by=c("idcntry","idstud"))
+
+rm(students2)
+
+students %>%
+  filter(!is.na(avgParentsEducation)) ->students
+
+students %>%
+  group_by(avgParentsEducation) %>%
+  summarise(mean=mean(meanMath)) -> stat
+```
+<p dir="RTL">
+نمودارهایی مانند بخش قبل برای این سوال رسم می کنیم:
+</p>
+```{r, warning=FALSE, fig.width=10}
+stat%>%
+  ggplot(aes(x=avgParentsEducation, y=mean))+
+  geom_point(color="blue")+geom_line(color="blue")+
+  xlab("Average Parents' Education")+
+  ylab("Average Functionality of Students")+
+  theme_bw()
+
+stat%>%
+  hchart(type="line", hcaes(x=avgParentsEducation, y=mean)) %>%
+  hc_xAxis(title = list(text = "Average Parents' Education")) %>%
+  hc_yAxis(title = list(text = "Average Functionality of Students"))
+
+students %>%
+  ggplot(aes(x = meanMath, group=avgParentsEducation, fill=avgParentsEducation)) +
+  geom_density(alpha = 0.3) +
+  xlab("Score") + ylab("Density")+
+  theme_bw()
+
+students %>%
+  ggplot(aes(x=avgParentsEducation, y=meanMath,
+             group=avgParentsEducation, fill=avgParentsEducation)) +
+  geom_boxplot() + 
+  xlab("Parents' Education")+
+  ylab("Functionality of Students")+
+  theme_bw()
+
+hcboxplot(x = students$meanMath, var = students$avgParentsEducation,
+          name = "Functionality of Students") %>%
+  hc_chart(type = "column") %>%
+  hc_xAxis(title = list(text = "Parents' Education")) %>%
+  hc_yAxis(title = list(text = "Functionality of Students"))
+```
+<p dir="RTL">
+همانطور که مشخص است، تفاوت ها بسیار معنادار به نظر می رسند. حالا باید تست آنوا را برای کمی کردن آزمون فرضمان انجام دهیم:
+</p>
+```{r, warning=FALSE}
+summary.aov(aov(meanMath~avgParentsEducation, data = students))
+```
+<p dir="RTL">
+همانطور که مشخص است، 
+$Pr(>F)$ 
+که مشابه همان 
+$p-value$ 
+است، عددی بسیار کوچک است. یعنی تقریبا 
+$2*10^{-16}$. 
+بنابراین فرض صفر رد می شود و اختلافات آماری معنادار هستند.
+یعنی تحصیلات پدر و مادر، در سطح عملکرد دانش آموزان موثر است.
+حالا می خواهیم ببینیم که تاثیر تحصیلات هرکدام از پدر یا مادر بر موفقیت فرزند چقدر است:
+</p>
+```{r, warning=FALSE, fig.width=10}
+students %>%
+  group_by(motherEducation) %>%
+  summarise(mean1=mean(meanMath)) -> stat1
+students %>%
+  group_by(fatherEducation) %>%
+  summarise(mean2=mean(meanMath)) -> stat2
+stat=merge(stat1, stat2)
+rm(stat1, stat2)
+
+stat %>%
+  ggplot()+
+  geom_point(aes(x=motherEducation, y=mean1, color="Mother"))+
+  geom_line(aes(x=motherEducation, y=mean1, color="Mother"))+
+  geom_point(aes(x=fatherEducation, y=mean2, color="Father"))+
+  geom_line(aes(x=fatherEducation, y=mean2, color="Father"))+
+  labs(color='Parent')+
+  xlab("Average Parents' Education")+
+  ylab("Average Functionality of Students")+
+  theme_bw()
+```
+```{r, warning=FALSE, fig.width=10}
+cor(students$meanMath, students$motherEducation, method = "spearman")
+cor(students$meanMath, students$fatherEducation, method = "spearman")
+```
+<p dir="RTL">
+همانطور که مشخص است، میزان تحصیلات مادر، همبستگی بالاتری نسبت به میزان تحصیلات پدر در میزان موفقیت دانش آموزان دارد.
+</p>
+
+***
+
+<h4 dir="RTL">
+۳. امکانات رفاهی در خانه موجب پیشرفت تحصیلی می گردد.
+</h4>
+<h5 dir="RTL">
+پاسخ:
+</h5>
+<p dir="RTL">
+حل این سوال هم بسیار مشابه دو سوال قبل است. تعداد جواب های بله به سوال ۶ از پرسشنامه ی دانش آموزان را معیاری بر امکانات رفاهی دانش آموز در نظر می گیریم. موارد مورد سنجش در این سوال عبارتند از:
+</p>
+<p dir="RTL">
+۱- آیا دانش آموز در خانه تبلت یا کامپیوتر شخصی دارد؟
+</p>
+<p dir="RTL">
+۲- 
+آیا دانش آموز در خانه 
+تبلت یا کامپیوتر اشتراکی با سایر اعضای خانه 
+دارد؟
+</p>
+<p dir="RTL">
+۳- 
+آیا دانش آموز در خانه 
+میز مطالعه
+دارد؟
+</p>
+<p dir="RTL">
+۴- 
+آیا دانش آموز در خانه 
+اتاق شخصی
+دارد؟
+</p>
+<p dir="RTL">
+۵- 
+آیا دانش آموز در خانه 
+دسترسی به اینترنت
+دارد؟
+</p>
+<p dir="RTL">
+۶- 
+آیا دانش آموز در خانه 
+تلفن همراه شخصی
+دارد؟
+</p>
+<p dir="RTL">
+۷- 
+آیا دانش آموز در خانه 
+کنسول بازی (مانند پلی استیشن یا اکس باکس)
+دارد؟
+</p>
+<p dir="RTL">
+تعداد جواب های مثبت به سوالات بالا را معیاری از امکانات رفاهی برای دانش آموزان در خانه در نظر می گیریم و عملکرد دانش آموزان را به تفکیک میزان امکانات رفاهی شان بررسی می کنیم:
+</p>
+```{r, warning=FALSE, fig.width=10}
+bsa %>%
+  select(idcntry, idstud, bsmmat01:bsmmat05) %>%
+  mutate(meanMath = (bsmmat01+bsmmat02+bsmmat03+bsmmat04+bsmmat05)/5) %>%
+  select(idcntry, idstud, meanMath) -> students
+
+bsg %>%
+  select(idcntry, idstud, bsbg06a:bsbg06k) %>%
+  filter(bsbg06a < 3 & bsbg06b < 3 & bsbg06c < 3 & bsbg06d < 3 & bsbg06e < 3 & bsbg06f < 3 &
+         bsbg06g < 3 & bsbg06h < 3 & bsbg06i < 3 & bsbg06j < 3 & bsbg06k < 3) %>%
+  mutate (avgWelfare=(-bsbg06a-bsbg06b-bsbg06c-bsbg06d-bsbg06e-bsbg06f-
+                      bsbg06g-bsbg06h-bsbg06i-bsbg06j-bsbg06k+22)) %>%
+  select(idcntry, idstud, avgWelfare) -> students2
+
+students = merge(students, students2, by=c("idcntry","idstud"))
+
+rm(students2)
+
+students %>%
+  filter(!is.na(avgWelfare)) ->students
+
+students %>%
+  group_by(avgWelfare) %>%
+  summarise(mean=mean(meanMath)) -> stat
+
+stat%>%
+  ggplot(aes(x=avgWelfare, y=mean))+
+  geom_point(color="blue")+geom_line(color="blue")+
+  xlab("Average Welfare")+
+  ylab("Average Functionality of Students")+
+  theme_bw()
+
+
+stat%>%
+  hchart(type="line", hcaes(x=avgWelfare, y=mean)) %>%
+  hc_xAxis(title = list(text = "Average Welfare")) %>%
+  hc_yAxis(title = list(text = "Average Functionality of Students"))
+
+students %>%
+  ggplot(aes(x = meanMath, group=avgWelfare, fill=avgWelfare)) +
+  geom_density(alpha = 0.3) +
+  xlab("Score") + ylab("Density")+
+  theme_bw()
+
+students %>%
+  ggplot(aes(x=avgWelfare, y=meanMath,
+             group=avgWelfare, fill=avgWelfare)) +
+  geom_boxplot() + 
+  xlab("Average Welfare")+
+  ylab("Functionality of Students")+
+  theme_bw()
+
+hcboxplot(x = students$meanMath, var = students$avgWelfare,
+          name = "Functionality of Students") %>%
+  hc_chart(type = "column") %>%
+  hc_xAxis(title = list(text = "Average Welfare")) %>%
+  hc_yAxis(title = list(text = "Functionality of Students"))
+
+summary.aov(aov(meanMath~avgWelfare, data = students))
+```
+
+<p dir="RTL">
+همانطور که از نمودارها و تست آنووا مشخص است، افزایش میزان امکانات رفاهی در خانه تاثیر معناداری بر بهبود عملکرد دانش آموزان در درس ریاضی دارد.
+</p>
+
+***
+
+<h4 dir="RTL">
+۴. محیط آرام مدرسه نقش مهمی در پیشرفت تحصیلی دارد.
+</h4>
+</h4>
+<h5 dir="RTL">
+پاسخ:
+</h5>
+<p dir="RTL">
+برای سنجش میزان آرام بودن محیط مدرسه، به سوال ۷ پرسشنامه ی معلمان مراجعه می کنیم. مواردی که در این سوال بررسی می شوند عبارتند از:
+</p>
+<p dir="RTL">
+۱- امن بودن محله ی مدرسه
+</p>
+<p dir="RTL">
+۲- احساس امنیت کردن معلمان در مدرسه
+</p>
+<p dir="RTL">
+۳- سیاست های امنیتی صحیح مدرسه
+</p>
+<p dir="RTL">
+۴- رفتار مناسب دانش آموزان
+</p>
+<p dir="RTL">
+۵- احترام دانش آموزان به معلمان
+</p>
+<p dir="RTL">
+۶- احترام دانش آموزان به مدرسه
+</p>
+<p dir="RTL">
+۷- سیاست های صحیح مدرسه در خصوص رفتار دانش آموزان
+</p>
+<p dir="RTL">
+۸- ثابت قدم بودن و عادلانه اجرا شدن سیاست های مدرسه
+</p>
+<p dir="RTL">
+به ازای هر مدرسه، پاسخ تک تک معلمان به سوالات بالا را با هم جمع می زنیم و بر روی نتیجه ی نهایی همه ی معلمان یک مدرسه میانگین میگیریم. عدد حاصل، معیاری از آرام بودن محیط مدرسه است. اگر مدارس را بر حسب این کمیت (میزان آرام بودنشان) مرتب کنیم، یک سوم ابتدای لیست را مدارسی با وضعیت آرامش پایین، یک سوم میانه ی لیست را مدارسی با وضعیت آرامش متوسط و یک سوم انتهای لیست را مدارسی با وضعیت آرامش بالا نام گذاری می کنیم. در نهایت میزان عملکرد دانش آموزان را بسته به میزان آرامش مدرسه شان بررسی می کنیم:
+</p>
+
+```{r, warning=FALSE, fig.width=10}
+bsa %>%
+  select(idcntry, idstud, idschool, bsmmat01:bsmmat05) %>%
+  mutate(meanMath = (bsmmat01+bsmmat02+bsmmat03+bsmmat04+bsmmat05)/5) %>%
+  select(idcntry, idstud, idschool, meanMath) -> students
+
+btm %>%
+  select(idcntry, idschool, btbg07a:btbg07h) %>%
+  filter(btbg07a < 5 & btbg07b < 5 & btbg07c < 5 & btbg07d < 5 & btbg07e < 5 &
+         btbg07f < 5 & btbg07g < 5 & btbg07h < 5) %>%
+  mutate (avgSafety=(-btbg07a-btbg07b-btbg07c-btbg07d-
+                      btbg07e-btbg07f-btbg07g-btbg07h+32)) %>%
+  select(idcntry, idschool, avgSafety) %>%
+  group_by(idcntry, idschool) %>%
+  summarise(avgSafety=mean(avgSafety)) -> schools
+
+students = merge(students, schools, by=c("idcntry", "idschool"))
+
+rm(schools)
+
+students %>%
+  filter(!is.na(avgSafety)) ->students
+
+second=quantile(students$avgSafety, probs = seq(0, 1, 1/3))[2]
+third=quantile(students$avgSafety, probs = seq(0, 1, 1/3))[3]
+
+replace(students$avgSafety, students$avgSafety<second, "Low") -> students$avgSafety
+replace(students$avgSafety, students$avgSafety<third, "Medium") -> students$avgSafety
+replace(students$avgSafety, students$avgSafety!="Low" &
+                            students$avgSafety!="Medium", "High") -> students$avgSafety
+students$avgSafety = as.factor(students$avgSafety)
+students$avgSafety <- factor(students$avgSafety, levels=c("Low", "Medium", "High"))
+
+
+students %>%
+  group_by(avgSafety) %>%
+  summarise(mean=mean(meanMath)) -> stat
+
+stat%>%
+  ggplot(aes(x=avgSafety, y=mean))+
+  geom_bar(stat = "identity", fill="blue", color="black")+
+  xlab("Average Safety")+
+  ylab("Average Functionality of Students")+
+  theme_bw()
+
+
+stat%>%
+  hchart(type="column", hcaes(x=avgSafety, y=mean)) %>%
+  hc_xAxis(title = list(text = "Average Safety")) %>%
+  hc_yAxis(title = list(text = "Average Functionality of Students"))
+
+students %>%
+  ggplot(aes(x = meanMath, group=avgSafety, fill=avgSafety)) +
+  geom_density(alpha = 0.3) +
+  xlab("Score") + ylab("Density")+
+  theme_bw()
+
+hchart(density(students$meanMath[which(students$avgSafety=="Low")]), type = "area", name="Low") %>%
+  hc_add_series(density(students$meanMath[which(students$avgSafety=="Medium")]), type = "area", name="Medium") %>%
+  hc_add_series(density(students$meanMath[which(students$avgSafety=="High")]), type = "area", name="High") %>%
+  hc_add_theme(hc_theme_elementary()) %>%
+  hc_xAxis(title = list(text = "Score")) %>%
+  hc_yAxis(title = list(text = "Density"))
+
+students %>%
+  ggplot(aes(x=avgSafety, y=meanMath,
+             group=avgSafety, fill=avgSafety)) +
+  geom_boxplot() + 
+  xlab("Average Safety")+
+  ylab("Functionality of Students")+
+  theme_bw()
+
+hcboxplot(x = students$meanMath, var = students$avgSafety,
+          name = "Functionality of Students") %>%
+  hc_chart(type = "column") %>%
+  hc_xAxis(title = list(text = "Average Safety")) %>%
+  hc_yAxis(title = list(text = "Functionality of Students"))
+
+summary.aov(aov(meanMath~avgSafety, data = students))
+```
+<p dir="RTL">
+همانطور که از نمودار ها و تست آنووا مشخص است، هرچه آرامش در مدرسه بیشتر می شود، عملکرد دانش آموزان آن مدرسه در درس ریاضی به طور معناداری بهتر می گردد.
+</p>
+***
+
+<h4 dir="RTL">
+۵. معلمان با تحصیلات  بالاتر یا تجربه بیشتر دانش آموزان موفق تری تربیت می کنند.
+</h4>
+
+<h5 dir="RTL">
+پاسخ:
+</h5>
+
+<p dir="RTL">
+ابتدا به بررسی تاثیر تحصیلات معلمان بر عملکرد دانش آموزان می پردازیم:
+</p>
+
+```{r, warning=FALSE, fig.width=10}
+bsa %>%
+  select(idcntry, idstud, bsmmat01:bsmmat05) %>%
+  mutate(meanMath = (bsmmat01+bsmmat02+bsmmat03+bsmmat04+bsmmat05)/5) %>%
+  select(idcntry, idstud, meanMath) ->students
+
+btm %>%
+  select(idcntry, idteach, experience=btbg01, education=btbg04) ->teachers
+
+bst %>%
+  select(idcntry, idstud, idteach) ->link
+
+teachers = merge(teachers, link, by=c("idcntry","idteach"))
+students = merge(students, teachers, by=c("idcntry","idstud"))
+
+students %>%
+  filter(!is.na(education) & !is.na(experience))->students
+
+students %>%
+  group_by(education) %>%
+  summarise(mean=mean(meanMath)) -> stat
+
+stat%>%
+  ggplot(aes(x=education, y=mean))+
+  geom_point(color="blue")+geom_line(color="blue")+
+  xlab("Teacher's Education")+
+  ylab("Average Functionality of Students")+
+  theme_bw()
+
+stat%>%
+  hchart(type="line", hcaes(x=education, y=mean)) %>%
+  hc_xAxis(title = list(text = "Teacher's Education")) %>%
+  hc_yAxis(title = list(text = "Average Functionality of Students"))
+
+students %>%
+  ggplot(aes(x = meanMath, group=education, fill=education)) +
+  geom_density(alpha = 0.3) +
+  xlab("Score") + ylab("Density")+
+  theme_bw()
+
+hchart(density(students$meanMath[which(students$education==1)]), type = "area", name="Did not Complet Upper Secondary") %>%
+  hc_add_series(density(students$meanMath[which(students$education==2)]), type = "area", name="Upper Secondary") %>%
+  hc_add_series(density(students$meanMath[which(students$education==3)]), type = "area", name="Post Secondary") %>%
+  hc_add_series(density(students$meanMath[which(students$education==4)]), type = "area", name="Short-cycle tertiary") %>%
+  hc_add_series(density(students$meanMath[which(students$education==5)]), type = "area", name="Bachelor’s or equivalent") %>%
+  hc_add_series(density(students$meanMath[which(students$education==6)]), type = "area", name="Master’s or equivalent") %>%
+  hc_add_series(density(students$meanMath[which(students$education==7)]), type = "area", name="Doctor or equivalent") %>%
+  hc_add_theme(hc_theme_elementary()) %>%
+  hc_xAxis(title = list(text = "Score")) %>%
+  hc_yAxis(title = list(text = "Density"))
+
+students %>%
+  ggplot(aes(x=education, y=meanMath, group=education, fill=education)) +
+  geom_boxplot() + 
+  xlab("Teacher's Education")+
+  ylab("Functionality of Students")+
+  theme_bw()
+
+hcboxplot(x = students$meanMath, var = students$education,
+          name = "Functionality of Students") %>%
+  hc_chart(type = "column") %>%
+  hc_xAxis(title = list(text = "Teacher's Education")) %>%
+  hc_yAxis(title = list(text = "Functionality of Students"))
+
+summary.aov(aov(meanMath~education, data = students))
+```
+<p dir="RTL">
+همانطور که از نمودارها و تست آنوا مشخص است، افزایش تحصیلات معلمان به طور معناداری نتایج عملکرد دانش آموزان را بهبود می دهد.
+</p>
+<p dir="RTL">
+حالا به بررسی رابطه ی بین تجربه ی معلمان با عملکرد دانش آموزان می پردازیم. معلمان را از نظر سابقه ی کاری به ۳ دسته تقسیم میکنیم:
+</p>
+<p dir="RTL">
+۱- معلمان با تجربه ی کم (سابقه ی کاری کمتر از ۱۰ سال)
+</p>
+<p dir="RTL">
+۲- معلمان با تجربه ی متوسط (سابقه ی کاری بین ۱۰ تا ۲۰ سال)
+</p>
+<p dir="RTL">
+۳- معلمان با تجربه ی زیاد (سابقه ی کاری بالاتر از ۲۰ سال)
+</p>
+<p dir="RTL">
+حالا به بررسی عملکرد دانش آموزان به تفکیک تجربه ی معلمشان می پردازیم:
+</p>
+```{r, warning=FALSE, fig.width=10}
+replace(students$experience, students$experience<10, "Low") -> students$experience
+replace(students$experience, students$experience<20, "Medium") -> students$experience
+replace(students$experience, students$experience!="Low" &
+          students$experience!="Medium", "High") -> students$experience
+students$experience = as.factor(students$experience)
+students$experience <- factor(students$experience, levels=c("Low", "Medium", "High"))
+
+students %>%
+  group_by(experience) %>%
+  summarise(mean=mean(meanMath)) -> stat
+
+stat%>%
+  ggplot(aes(x=experience, y=mean))+
+  geom_bar(stat = "identity", fill="blue", color="black")+
+  xlab("Teacher's Experience")+
+  ylab("Average Functionality of Students")+
+  theme_bw()
+
+stat%>%
+  hchart(type="column", hcaes(x=experience, y=mean)) %>%
+  hc_xAxis(title = list(text = "Teacher's Experience")) %>%
+  hc_yAxis(title = list(text = "Average Functionality of Students"))
+
+stat%>%
+  hchart(type="line", hcaes(x=experience, y=mean)) %>%
+  hc_xAxis(title = list(text = "Teacher's Experience")) %>%
+  hc_yAxis(title = list(text = "Average Functionality of Students"))
+
+students %>%
+  ggplot(aes(x = meanMath, group=experience, fill=experience)) +
+  geom_density(alpha = 0.3) +
+  xlab("Score") + ylab("Density")+
+  theme_bw()
+
+hchart(density(students$meanMath[which(students$experience=="Low")]), type = "area", name="Low Experience") %>%
+  hc_add_series(density(students$meanMath[which(students$experience=="Medium")]), type = "area", name="Medium Experience") %>%
+  hc_add_series(density(students$meanMath[which(students$experience=="High")]), type = "area", name="High Experience") %>%
+  hc_add_theme(hc_theme_elementary()) %>%
+  hc_xAxis(title = list(text = "Score")) %>%
+  hc_yAxis(title = list(text = "Density"))
+
+students %>%
+  ggplot(aes(x=experience, y=meanMath, group=experience, fill=experience)) +
+  geom_boxplot() + 
+  xlab("Teacher's Experience")+
+  ylab("Functionality of Students")+
+  theme_bw()
+
+hcboxplot(x = students$meanMath, var = students$experience,
+          name = "Functionality of Students") %>%
+  hc_chart(type = "column") %>%
+  hc_xAxis(title = list(text = "Teacher's Experience")) %>%
+  hc_yAxis(title = list(text = "Functionality of Students"))
+
+summary.aov(aov(meanMath~education, data = students))
+```
+<p dir="RTL">
+همانطور که از نمودارها و تست آنوا مشخص است، افزایش تجربه ی معلمان، نقش موثری در بهبود عملکرد دانش آموزان دارد.
+</p>
+***
+
+<h4 dir="RTL"> 
+۶. پسران در کاربرد هندسه قوی تر هستند.
+</h4>
+
+<h5 dir="RTL">
+پاسخ:
+</h5>
+
+<p dir="RTL">
+ابتدا پاسخ دانش آموزان به سوالاتی که دامنه ی محتوایی آن ها هندسه و دامنه ی شناختی آن ها کاربردی است را جدا می کنیم:
+</p>
+
+```{r, warning=FALSE, fig.width=10}
+timss %>%
+  filter(content_domain=="Geometry" & cognitive_domain=="Applying") %>%
+  select(correct_ratio_per_question_female, correct_ratio_per_question_male)->students
+```
+<p dir="RTL">
+سپس میانگین عملکرد دختران و پسران را به صورت جداگانه میسنجیم:
+</p>
+```{r, warning=FALSE, fig.width=10}
+stat = data_frame(gender=c("male", "female"))
+stat$mean[1]=mean(students$correct_ratio_per_question_male)
+stat$mean[2]=mean(students$correct_ratio_per_question_female)
+```
+<p dir="RTL">
+می توان این مقادیر را روی نمودار نشان داد:
+</p>
+```{r, warning=FALSE, fig.width=10}
+stat%>%
+  ggplot(aes(x=gender, y=mean))+
+  geom_bar(stat = "identity", fill="blue", color="black")+
+  xlab("Gender")+
+  ylab("Average Functionality of Students in Applying Geometry")+
+  theme_bw()
+
+stat%>%
+  hchart(type="column", hcaes(x=gender, y=mean)) %>%
+  hc_xAxis(title = list(text = "Gender")) %>%
+  hc_yAxis(title = list(text = "Average Functionality of Students in Applying Geometry"))
+
+stat%>%
+  hchart(type="scatter", hcaes(x=gender, y=mean)) %>%
+  hc_xAxis(title = list(text = "Gender")) %>%
+  hc_yAxis(title = list(text = "Average Functionality of Students in Applying Geometry"))
+```
+<p dir="RTL">
+همانطور که مشخص است، میانگین عملکرد دختران در این بخش، بالاتر از پسران بوده است. حالا باید ببینیم آیا این تفاوت از نظر آماری معنادار است یا خیر. برای درک بهتر تفاوت، می توان به نمودار های زیر نگاه کرد:
+</p>
+```{r, warning=FALSE, fig.width=10}
+students %>%
+  gather(Gender, Mean) ->students
+replace(students$Gender, students$Gender=="correct_ratio_per_question_female", "Female") -> students$Gender
+replace(students$Gender, students$Gender=="correct_ratio_per_question_male", "Male") -> students$Gender
+
+students %>%
+  ggplot(aes(x = Mean, group=Gender, fill=Gender)) +
+  geom_density(alpha = 0.3) +
+  xlab("Score") + ylab("Density")+
+  theme_bw()
+
+hchart(density(students$Mean[which(students$Gender=="Male")]), type = "area", name="Male") %>%
+  hc_add_series(density(students$Mean[which(students$Gender=="Female")]), type = "area", name="Female") %>%
+  hc_add_theme(hc_theme_elementary()) %>%
+  hc_xAxis(title = list(text = "Score")) %>%
+  hc_yAxis(title = list(text = "Density"))
+
+students %>%
+  ggplot(aes(x=Gender, y=Mean, group=Gender, fill=Gender)) +
+  geom_boxplot() + 
+  xlab("Gender")+
+  ylab("Functionality of Students in Applying Geometry")+
+  theme_bw()
+
+hcboxplot(x=students$Mean, var=students$Gender) %>%
+  hc_chart(type = "column") %>%
+  hc_xAxis(title = list(text = "Gender")) %>%
+  hc_yAxis(title = list(text = "Functionality of Students in Applying Geometry"))
+```
+<p dir="RTL">
+به نظر می رسد که این تفاوت، معنادار نیست. برای سنجش کمی و آماری قضیه، از آزمون 
+$t-test$ 
+استفاده می کنیم. در اینجا فرض صفر این است که عملکرد دختران بهتر از عملکرد پسران است. فرض جایگزین هم این است که عملکرد پسران بهتر از عملکرد دختران است. حالا می خواهیم ببینیم که آیا می توان فرض صفر را رد کرد یا نه؟
+</p>
+```{r, warning=FALSE, fig.width=10}
+t.test(Mean~Gender, data=students, alt="less")
+```
+<p dir="RTL">
+همانطور که مشخص است، مقدار 
+$p-value$ 
+بسیار چشمگیر است (حدودا ۰.۵۹۳۳) و در نتیجه نمی توانیم فرض صفر را رد کنیم. این بدان معنی نیست که فرض صفر را قبول می کنیم. در نتیجه به نظر می رسد از روی داده ها، نمی توان اختلاف آماری معناداری بین عملکرد دختران و پسران نتیجه گرفت.
+</p>
+***
+
+<h4 dir="RTL"> 
+۷. تغذیه دانش آموزان نقش اساسی در یادگیری آنها دارد. 
+</h4>
+
+<h5 dir="RTL">
+پاسخ:
+</h5>
+
+<p dir="RTL">
+فرکانس مصرف صبحانه در دانش آموزان را معیاری برای کیفیت تغذیه شان در نظر میگیریم. یعنی دانش آموزان را به ۴ گروه تقسیم می کنیم:
+</p>
+<p dir="RTL">
+۱- دانش آموزانی که هیچگاه یا تقریبا هیچگاه صبحانه نمیخورند
+</p>
+<p dir="RTL">
+۲- دانش آموزانی که گاهی اوقات صبحانه می خورند
+</p>
+<p dir="RTL">
+۳- دانش آموزانی که بیشتر روزها صبحانه می خورند
+</p>
+<p dir="RTL">
+۴- دانش آموزانی که هرروز صبحانه می خورند
+</p>
+<p dir="RTL">
+حالا عملکرد این ۴ گروه را با یکدیگر مقایسه می کنیم:
+</p>
+```{r, warning=FALSE, fig.width=10}
+bsa %>%
+  select(idcntry, idstud, bsmmat01:bsmmat05) %>%
+  mutate(meanMath = (bsmmat01+bsmmat02+bsmmat03+bsmmat04+bsmmat05)/5) %>%
+  select(idcntry, idstud, meanMath) -> students
+
+bsg %>%
+  select(idcntry, idstud, bsbg12) %>%
+  mutate (breakfast=5-bsbg12) %>%
+  select(idcntry, idstud, breakfast) -> students2
+
+students = merge(students, students2, by=c("idcntry","idstud"))
+
+rm(students2)
+
+students %>%
+  filter(!is.na(breakfast)) ->students
+
+students %>%
+  group_by(breakfast) %>%
+  summarise(mean=mean(meanMath)) -> stat
+
+stat%>%
+  ggplot(aes(x=breakfast, y=mean))+
+  geom_point(color="blue")+geom_line(color="blue")+
+  geom_smooth(method="lm")+
+  xlab("Frequency of Having Breakfast")+
+  ylab("Average Functionality of Students")+
+  theme_bw()
+
+stat%>%
+  hchart(type="line", hcaes(x=breakfast, y=mean)) %>%
+  hc_xAxis(title = list(text = "Frequency of Having Breakfast")) %>%
+  hc_yAxis(title = list(text = "Average Functionality of Students")) %>%
+  hc_add_theme(hc_theme_elementary())
+
+students %>%
+  ggplot(aes(x = meanMath, group=breakfast, fill=breakfast)) +
+  geom_density(alpha = 0.3) +
+  xlab("Score") + ylab("Density")+
+  theme_bw()
+
+hchart(density(students$meanMath[which(students$breakfast==1)]), type = "area", name="Never or almost never") %>%
+  hc_add_series(density(students$meanMath[which(students$breakfast==2)]), type = "area", name="Sometimes") %>%
+  hc_add_series(density(students$meanMath[which(students$breakfast==3)]), type = "area", name="Most days") %>%
+  hc_add_series(density(students$meanMath[which(students$breakfast==4)]), type = "area", name="Every day") %>%
+  hc_add_theme(hc_theme_elementary()) %>%
+  hc_xAxis(title = list(text = "Score")) %>%
+  hc_yAxis(title = list(text = "Density"))
+
+
+students %>%
+  ggplot(aes(x=breakfast, y=meanMath,
+             group=breakfast, fill=breakfast)) +
+  geom_boxplot() + 
+  xlab("Frequency of Having Breakfast")+
+  ylab("Functionality of Students")+
+  theme_bw()
+
+hcboxplot(x = students$meanMath, var = students$breakfast,
+          name = "Functionality of Students") %>%
+  hc_chart(type = "column") %>%
+  hc_xAxis(title = list(text = "Frequency of Having Breakfast")) %>%
+  hc_yAxis(title = list(text = "Functionality of Students")) %>%
+  hc_add_theme(hc_theme_elementary())
+
+summary.aov(aov(meanMath~breakfast, data = students))
+```
+<p dir="RTL">
+همانطور که از نمودارها و تست آنوا مشخص است، تاثیرات صبحانه به لحاظ آماری بر عملکرد دانش آموزان کاملا معنادار است.
+</p>
+<p dir="RTL">
+در انتها بد نیست که یک نکته ی دیگر را هم تست کنیم. اینکه آیا کسانی که در گروه ۴ قرار دارند (هر روز صبحانه می خورند) عملکرد بهتری از کسانی که در گروه ۳ قرار دارند (و بیشتر روزها صبحانه میخورند) دارند یا خیر.
+</p>
+<p dir="RTL">
+فرض صفر: کسانی که هر روز صبحانه میخورند، عملکرد کمتر یا مساوی با کسانی که بیشتر روزها صبحانه میخورند دارند:
+</p>
+
+```{r, warning=FALSE, fig.width=10}
+students %>%
+  filter(breakfast>=3)->students
+
+t.test(meanMath~breakfast, data = students, alt="less")
+```
+<p dir="RTL">
+همانطور که از آزمون 
+t-test 
+مشخص است، فرض صفر رد می شود و فرض جایگزین اثبات می گردد. یعنی اینکه دانش آموزان هر روز (به جای بیشتر روزها) صبحانه بخورند، تاثیر آماری معناداری روی بهبود عملکردشان دارد.
+</p>
+
+***
+
+<h4 dir="RTL"> 
+۸. مدارس با امکانات بیشتر دارای عملکرد بهتری می باشند.
+</h4>
+<h5 dir="RTL">
+پاسخ:
+</h5>
+<p dir="RTL">
+-
+</p>
+
+***
+
+<h4 dir="RTL"> 
+۹. علت افت تحصیلی عدم مشارکت در کلاس است.
+</h4>
+<h5 dir="RTL">
+پاسخ:
+</h5>
+<p dir="RTL">
+-
+</p>
+
+***
+
+<h4 dir="RTL"> 
+۱۰. دانش آموزان ایرانی در استدلال قوی تر از کاربرد هستند.
+</h4>
+<h5 dir="RTL">
+پاسخ:
+</h5>
+<p dir="RTL">
+-
+</p>
+
+***
+
+<h4 dir="RTL">
+سه گزاره جالب کشف کنید و ادعای خود را ثابت نمایید.
+</h4>
+
+<h5 dir="RTL">
+پاسخ:
+</h5>
+
+<p dir="RTL">
+
+</p>
+
